@@ -1,0 +1,151 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --ofoq-bg: #F1F5F9;
+    --ofoq-text: #0F172A;
+    --ofoq-panel-bg: rgba(255, 255, 255, 0.82);
+    --ofoq-surface-bg: rgba(255, 255, 255, 0.72);
+    --ofoq-surface-hover: rgba(255, 255, 255, 0.94);
+    --ofoq-border: rgba(15, 23, 42, 0.1);
+    --ofoq-border-hover: rgba(14, 165, 233, 0.45);
+    --ofoq-accent: #0284C7;
+    --ofoq-glass-blur: 24px;
+    --ofoq-scroll-track: #E2E8F0;
+    --ofoq-range-track: rgba(148, 163, 184, 0.35);
+  }
+
+  .dark {
+    color-scheme: dark;
+    --ofoq-bg: #070B19;
+    --ofoq-text: #F1F5F9;
+    --ofoq-panel-bg: rgba(13, 20, 40, 0.68);
+    --ofoq-surface-bg: rgba(15, 23, 42, 0.56);
+    --ofoq-surface-hover: rgba(20, 31, 56, 0.72);
+    --ofoq-border: rgba(148, 163, 184, 0.14);
+    --ofoq-border-hover: rgba(56, 189, 248, 0.32);
+    --ofoq-accent: #38BDF8;
+    --ofoq-glass-blur: 24px;
+    --ofoq-scroll-track: #070B19;
+    --ofoq-range-track: rgba(30, 41, 59, 0.9);
+  }
+
+  body {
+    font-family: 'Cairo', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--ofoq-bg);
+    color: var(--ofoq-text);
+    overflow-x: hidden;
+  }
+
+  .font-mono-tabular {
+    font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.glass-panel {
+  background: var(--ofoq-panel-bg);
+  backdrop-filter: blur(var(--ofoq-glass-blur));
+  -webkit-backdrop-filter: blur(var(--ofoq-glass-blur));
+  border: 1px solid var(--ofoq-border);
+}
+
+.glass-surface {
+  background: var(--ofoq-surface-bg);
+  backdrop-filter: blur(calc(var(--ofoq-glass-blur) - 4px));
+  -webkit-backdrop-filter: blur(calc(var(--ofoq-glass-blur) - 4px));
+  border: 1px solid var(--ofoq-border);
+}
+
+.glass-surface-hover:hover {
+  background: var(--ofoq-surface-hover);
+  border-color: var(--ofoq-border-hover);
+}
+
+/* Custom sleek scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ofoq-scroll-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.35);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.55);
+}
+
+/* Range slider styling */
+input[type="range"].ofoq-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--ofoq-range-track);
+  height: 6px;
+  border-radius: 9999px;
+  outline: none;
+}
+
+input[type="range"].ofoq-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0EA5E9;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.5);
+  cursor: pointer;
+}
+
+.dark input[type="range"].ofoq-range::-webkit-slider-thumb {
+  background: #38BDF8;
+  border: 2px solid #070B19;
+}
+
+input[type="range"].ofoq-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0EA5E9;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.5);
+  cursor: pointer;
+}
+
+.dark input[type="range"].ofoq-range::-moz-range-thumb {
+  background: #38BDF8;
+  border: 2px solid #070B19;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-boarding-pass,
+  #printable-boarding-pass * {
+    visibility: visible;
+  }
+  #printable-boarding-pass {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: 100%;
+    max-width: 780px;
+    background: #0B1224 !important;
+    color: #F8FAFC !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

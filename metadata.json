@@ -1,0 +1,6 @@
+{
+  "name": "أفق للطيران - Ofoq Aviation",
+  "description": "منصة أفق للطيران لحجز الرحلات الجوية، اختيار المقاعد، إصدار بطاقات الصعود الإلكترونية، وتتبع حركة الطيران المباشر.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
