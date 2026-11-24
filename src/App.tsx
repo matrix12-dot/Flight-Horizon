@@ -559,25 +559,29 @@ export default function App() {
         {activeTab === 'search' && (
           <>
             {/* Atmospheric Hero & Search Engine */}
-            <section className="relative overflow-hidden border-b border-slate-200/80 dark:border-white/10 mt-3">
-              {siteSettings.showHeroBackdrop && !heroImgFailed && (
-                <img
-                  src={HERO_IMAGE_PATH}
-                  alt="منظر جوي من نافذة الطائرة فوق السحب عند الغسق"
-                  referrerPolicy="no-referrer"
-                  onError={() => setHeroImgFailed(true)}
-                  className="absolute inset-0 w-full h-full object-cover opacity-20 dark:opacity-35 transition-opacity duration-300"
-                />
-              )}
+            <section className="relative z-40 border-b border-slate-200/80 dark:border-white/10 mt-3">
               <div
                 aria-hidden="true"
-                className="absolute inset-0 transition-colors duration-300"
-                style={{
-                  background: `linear-gradient(to bottom, ${activeBgHex}CC, ${activeBgHex}B8, ${activeBgHex})`,
-                }}
-              />
+                className="pointer-events-none absolute inset-0 overflow-hidden"
+              >
+                {siteSettings.showHeroBackdrop && !heroImgFailed && (
+                  <img
+                    src={HERO_IMAGE_PATH}
+                    alt="منظر جوي من نافذة الطائرة فوق السحب عند الغسق"
+                    referrerPolicy="no-referrer"
+                    onError={() => setHeroImgFailed(true)}
+                    className="absolute inset-0 w-full h-full object-cover opacity-20 dark:opacity-35 transition-opacity duration-300"
+                  />
+                )}
+                <div
+                  className="absolute inset-0 transition-colors duration-300"
+                  style={{
+                    background: `linear-gradient(to bottom, ${activeBgHex}CC, ${activeBgHex}B8, ${activeBgHex})`,
+                  }}
+                />
+              </div>
 
-              <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12 space-y-8">
+              <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12 space-y-8">
                 <div className="max-w-2xl space-y-3">
                   <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-900 dark:text-white leading-tight [text-wrap:balance]">
                     سافر بثقة عبر شبكة{' '}
@@ -604,7 +608,7 @@ export default function App() {
             {/* Results & Filters Workspace */}
             <section
               id="flight-results-section"
-              className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-5"
+              className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-5"
             >
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>

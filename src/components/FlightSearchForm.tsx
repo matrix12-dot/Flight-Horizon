@@ -142,7 +142,7 @@ export function FlightSearchForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="glass-panel rounded-3xl p-5 sm:p-7 shadow-2xl shadow-slate-900/10 dark:shadow-black/50"
+      className="relative z-50 glass-panel rounded-3xl p-5 sm:p-7 shadow-2xl shadow-slate-900/10 dark:shadow-black/50"
     >
       {/* Top Row: Trip Type & Cabin/Passenger Controls */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
@@ -182,7 +182,10 @@ export function FlightSearchForm({
         {/* Passengers & Cabin Selectors */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Passengers Dropdown */}
-          <div ref={passengerMenuRef} className="relative">
+          <div
+            ref={passengerMenuRef}
+            className={`relative ${isPassengersOpen ? 'z-[999]' : 'z-20'}`}
+          >
             <button
               type="button"
               onClick={() => setIsPassengersOpen((o) => !o)}
@@ -194,7 +197,7 @@ export function FlightSearchForm({
             </button>
 
             {isPassengersOpen && (
-              <div className="absolute left-0 top-full mt-2 w-72 z-50 rounded-2xl bg-white/95 dark:bg-[#0B1224]/95 backdrop-blur-2xl border border-slate-200 dark:border-sky-400/25 shadow-2xl p-4 space-y-3.5">
+              <div className="absolute left-0 top-full mt-2 w-72 z-[999] rounded-2xl bg-white/95 dark:bg-[#0B1224]/95 backdrop-blur-2xl border border-slate-200 dark:border-sky-400/25 shadow-2xl p-4 space-y-3.5">
                 {(
                   [
                     {
@@ -385,7 +388,7 @@ export function FlightSearchForm({
           {multiCityLegs.map((leg, index) => (
             <div
               key={leg.id}
-              className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center p-3 rounded-2xl bg-slate-100/75 dark:bg-slate-950/40 border border-slate-200 dark:border-white/10"
+              className="relative focus-within:z-50 grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center p-3 rounded-2xl bg-slate-100/75 dark:bg-slate-950/40 border border-slate-200 dark:border-white/10"
             >
               <div className="md:col-span-1 text-xs font-semibold text-sky-700 dark:text-sky-300 whitespace-nowrap">
                 الوجهة {index + 1}

@@ -60,7 +60,10 @@ export function AirportSelect({
   };
 
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div
+      ref={containerRef}
+      className={`relative w-full ${isOpen ? 'z-[999]' : 'z-10'}`}
+    >
       <button
         type="button"
         onClick={handleOpen}
@@ -87,7 +90,7 @@ export function AirportSelect({
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-2 inset-x-0 z-50 rounded-2xl bg-white/95 dark:bg-[#0B1224]/95 backdrop-blur-2xl border border-slate-200 dark:border-sky-400/25 shadow-2xl shadow-slate-900/15 dark:shadow-black/60 overflow-hidden min-w-[290px]">
+        <div className="absolute top-full mt-2 inset-x-0 z-[999] rounded-2xl bg-white/95 dark:bg-[#0B1224]/95 backdrop-blur-2xl border border-slate-200 dark:border-sky-400/25 shadow-2xl shadow-slate-900/15 dark:shadow-black/60 overflow-hidden min-w-[290px]">
           <div className="p-2.5 border-b border-slate-200 dark:border-white/10 flex items-center gap-2">
             <Search className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
             <input
