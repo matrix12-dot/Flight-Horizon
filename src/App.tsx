@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AuthModal } from '@/src/components/AuthModal';
 import { BookingModal } from '@/src/components/BookingModal';
 import { ContactModal } from '@/src/components/ContactModal';
@@ -9,6 +9,8 @@ import { FlightSearchForm } from '@/src/components/FlightSearchForm';
 import { Footer } from '@/src/components/Footer';
 import { MyTripsTab } from '@/src/components/MyTripsTab';
 import { Navbar } from '@/src/components/Navbar';
+import { PriceAlertModal } from '@/src/components/PriceAlertModal';
+import { PriceDropToastStack } from '@/src/components/PriceDropToastStack';
 import { SettingsModal } from '@/src/components/SettingsModal';
 import { generateFlightsForRoute } from '@/src/data/aviationData';
 import {
@@ -22,6 +24,8 @@ import {
   Currency,
   Flight,
   FlightFilterState,
+  PriceDropNotification,
+  RoutePriceAlert,
   SearchQuery,
   SiteSettings,
   SortOption,
@@ -34,6 +38,8 @@ import {
   getDefaultDate,
 } from '@/src/utils/formatters';
 import {
+  Bell,
+  BellRing,
   CheckCircle2,
   Coins,
   Filter,
@@ -50,6 +56,7 @@ const SETTINGS_STORAGE_KEY = 'ofoq_aviation_site_settings_v1';
 const USERS_STORAGE_KEY = 'ofoq_aviation_users_v1';
 const SESSION_USER_ID_KEY = 'ofoq_aviation_session_user_v1';
 const LAST_SEARCH_KEY = 'ofoq_aviation_last_search_v1';
+const PRICE_ALERTS_STORAGE_KEY = 'ofoq_aviation_price_alerts_v1';
 const HERO_IMAGE_PATH = '/src/assets/images/hero_ofoq_aviation_1795540402651.jpg';
 
 const DEFAULT_DEMO_USER: UserAccount = {
@@ -192,9 +199,34 @@ export default function App() {
   );
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authNotice, setAuthNotice] = useState<string | undefined>(undefined);
+  const [pendingAlertModalAfterAuth, setPendingAlertModalAfterAuth] =
+    useState(false);
+  const [isPriceAlertOpen, setIsPriceAlertOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [bookingBannerPnr, setBookingBannerPnr] = useState<string | null>(null);
   const [heroImgFailed, setHeroImgFailed] = useState(false);
+
+  const [priceAlerts, setPriceAlerts] = useState<RoutePriceAlert[]>(() => {
+    try {
+      const raw = localStorage.getItem(PRICE_ALERTS_STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as RoutePriceAlert[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [priceNotifications, setPriceNotifications] = useState<
+    PriceDropNotification[]
+  >([]);
+  const simulationTimersRef = useRef<number[]>([]);
+
+  const userPriceAlerts = useMemo(
+    () =>
+      currentUser
+        ? priceAlerts.filter((a) => a.userId === currentUser.id)
+        : [],
+    [priceAlerts, currentUser]
+  );
 
   // Persist Trips
   useEffect(() => {
@@ -204,6 +236,34 @@ export default function App() {
       // ignore
     }
   }, [bookedTrips]);
+
+  // Persist Route Price Alerts
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        PRICE_ALERTS_STORAGE_KEY,
+        JSON.stringify(priceAlerts)
+      );
+    } catch {
+      // ignore
+    }
+  }, [priceAlerts]);
+
+  // Clear pending timers on unmount or logout
+  useEffect(() => {
+    if (!currentUser) {
+      setPriceNotifications([]);
+      simulationTimersRef.current.forEach((id) => window.clearTimeout(id));
+      simulationTimersRef.current = [];
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    return () => {
+      simulationTimersRef.current.forEach((id) => window.clearTimeout(id));
+      simulationTimersRef.current = [];
+    };
+  }, []);
 
   // Listen to OS color-scheme changes for Automatic Dark Mode
   useEffect(() => {
@@ -408,6 +468,171 @@ export default function App() {
     setSiteSettings((prev) => ({ ...prev, themeMode: next }));
   };
 
+  const triggerSimulatedPriceDrop = useCallback((alert: RoutePriceAlert) => {
+    const previousPriceUsd = Math.max(
+      alert.baselinePriceUsd,
+      alert.targetPriceUsd + 20
+    );
+    const dropPercent = 0.08 + Math.random() * 0.08;
+    const candidatePrice = Math.round(alert.targetPriceUsd * (1 - dropPercent * 0.35));
+    const newPriceUsd = Math.max(
+      25,
+      Math.min(alert.targetPriceUsd, candidatePrice)
+    );
+
+    const notificationId = `drop-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 6)}`;
+    const notification: PriceDropNotification = {
+      id: notificationId,
+      alertId: alert.id,
+      origin: alert.origin,
+      destination: alert.destination,
+      cabinClass: alert.cabinClass,
+      previousPriceUsd,
+      newPriceUsd,
+      triggeredAt: new Date().toISOString(),
+    };
+
+    setPriceNotifications((prev) => [notification, ...prev].slice(0, 3));
+    setPriceAlerts((prev) =>
+      prev.map((item) =>
+        item.id === alert.id
+          ? {
+              ...item,
+              lastNotifiedAt: notification.triggeredAt,
+              lastDropPriceUsd: newPriceUsd,
+            }
+          : item
+      )
+    );
+
+    const dismissTimer = window.setTimeout(() => {
+      setPriceNotifications((prev) =>
+        prev.filter((n) => n.id !== notificationId)
+      );
+    }, 15_000);
+    simulationTimersRef.current.push(dismissTimer);
+  }, []);
+
+  // Periodic background simulation for active alerts of the logged-in user
+  useEffect(() => {
+    if (!currentUser || !siteSettings.flightAlertsEnabled) return;
+    const activeAlerts = userPriceAlerts.filter((a) => a.isActive);
+    if (activeAlerts.length === 0) return;
+
+    const intervalId = window.setInterval(() => {
+      const candidate =
+        activeAlerts.find((a) => !a.lastNotifiedAt) || activeAlerts[0];
+      if (candidate) {
+        triggerSimulatedPriceDrop(candidate);
+      }
+    }, 45_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [
+    currentUser,
+    siteSettings.flightAlertsEnabled,
+    userPriceAlerts,
+    triggerSimulatedPriceDrop,
+  ]);
+
+  const handleOpenPriceAlerts = () => {
+    if (!currentUser) {
+      setAuthNotice(
+        'سجّل دخولك لتفعيل تنبيهات انخفاض الأسعار لهذا المسار واستلام الإشعارات الفورية.'
+      );
+      setPendingAlertModalAfterAuth(true);
+      setIsAuthOpen(true);
+      return;
+    }
+    setIsPriceAlertOpen(true);
+  };
+
+  const handleSubscribePriceAlert = (
+    payload: Omit<RoutePriceAlert, 'id' | 'userId' | 'createdAt'>
+  ) => {
+    if (!currentUser) return;
+
+    const existing = priceAlerts.find(
+      (a) =>
+        a.userId === currentUser.id &&
+        a.origin === payload.origin &&
+        a.destination === payload.destination &&
+        a.cabinClass === payload.cabinClass
+    );
+
+    let savedAlert: RoutePriceAlert;
+    if (existing) {
+      savedAlert = {
+        ...existing,
+        baselinePriceUsd: payload.baselinePriceUsd,
+        targetPriceUsd: payload.targetPriceUsd,
+        isActive: true,
+      };
+      setPriceAlerts((prev) =>
+        prev.map((a) => (a.id === existing.id ? savedAlert : a))
+      );
+    } else {
+      savedAlert = {
+        ...payload,
+        id: `alert-${Date.now()}`,
+        userId: currentUser.id,
+        createdAt: new Date().toISOString(),
+      };
+      setPriceAlerts((prev) => [savedAlert, ...prev]);
+    }
+
+    if (siteSettings.flightAlertsEnabled) {
+      const timerId = window.setTimeout(() => {
+        triggerSimulatedPriceDrop(savedAlert);
+      }, 5000);
+      simulationTimersRef.current.push(timerId);
+    }
+  };
+
+  const handleTogglePriceAlert = (alertId: string) => {
+    setPriceAlerts((prev) =>
+      prev.map((a) => (a.id === alertId ? { ...a, isActive: !a.isActive } : a))
+    );
+  };
+
+  const handleDeletePriceAlert = (alertId: string) => {
+    setPriceAlerts((prev) => prev.filter((a) => a.id !== alertId));
+  };
+
+  const handleSelectNotifiedRoute = (notification: PriceDropNotification) => {
+    setSearchQuery((prev) => ({
+      ...prev,
+      tripType: prev.tripType === 'multi-city' ? 'round-trip' : prev.tripType,
+      origin: notification.origin,
+      destination: notification.destination,
+      cabinClass: notification.cabinClass,
+    }));
+    setActiveTab('search');
+    setPriceNotifications((prev) =>
+      prev.filter((n) => n.id !== notification.id)
+    );
+    window.setTimeout(() => {
+      const resultsEl = document.getElementById('flight-results-section');
+      if (resultsEl) {
+        resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 80);
+  };
+
+  const activeRouteAlert = useMemo(
+    () =>
+      userPriceAlerts.find(
+        (a) =>
+          a.origin === activeRouteParams.origin &&
+          a.destination === activeRouteParams.destination &&
+          a.cabinClass === activeRouteParams.cabinClass &&
+          a.isActive
+      ) || null,
+    [userPriceAlerts, activeRouteParams]
+  );
+
   const activePreset = BACKGROUND_PRESETS[siteSettings.backgroundPreset];
   const activeBgHex = resolvedIsDark
     ? activePreset.bgHex
@@ -496,10 +721,36 @@ export default function App() {
               <span>{currency === 'USD' ? 'العملة: USD $' : 'العملة: IQD د.ع'}</span>
             </button>
 
+            <button
+              type="button"
+              onClick={handleOpenPriceAlerts}
+              className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs dark:shadow-none ${
+                userPriceAlerts.some((a) => a.isActive)
+                  ? 'border-emerald-500/40 bg-emerald-500/12 text-emerald-700 dark:text-emerald-200 hover:bg-emerald-500/20'
+                  : 'border-slate-200 dark:border-white/15 bg-white/85 dark:bg-slate-900/70 hover:border-sky-400/50 text-slate-700 dark:text-slate-200'
+              }`}
+            >
+              {userPriceAlerts.some((a) => a.isActive) ? (
+                <BellRing className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <Bell className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+              )}
+              <span>
+                تنبيهات الأسعار
+                {currentUser && userPriceAlerts.length > 0
+                  ? ` (${userPriceAlerts.filter((a) => a.isActive).length})`
+                  : ''}
+              </span>
+            </button>
+
             {!currentUser && (
               <button
                 type="button"
-                onClick={() => setIsAuthOpen(true)}
+                onClick={() => {
+                  setAuthNotice(undefined);
+                  setPendingAlertModalAfterAuth(false);
+                  setIsAuthOpen(true);
+                }}
                 className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-white/15 bg-white/85 dark:bg-slate-900/70 hover:border-sky-400/50 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs dark:shadow-none"
               >
                 <LogIn className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
@@ -638,14 +889,37 @@ export default function App() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowMobileFilters((v) => !v)}
-                  className="lg:hidden px-4 py-2 rounded-xl border border-slate-200 dark:border-white/15 bg-white/85 dark:bg-slate-900/80 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2 cursor-pointer shadow-xs dark:shadow-none"
-                >
-                  <Filter className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                  <span>{showMobileFilters ? 'إخفاء الفلاتر' : 'تصفية النتائج'}</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleOpenPriceAlerts}
+                    className={`px-4 py-2 rounded-xl border text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer shadow-xs dark:shadow-none ${
+                      activeRouteAlert
+                        ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200 hover:bg-emerald-500/25'
+                        : 'border-sky-500/35 dark:border-sky-400/35 bg-white/85 dark:bg-slate-900/80 hover:border-sky-400 text-sky-700 dark:text-sky-200'
+                    }`}
+                  >
+                    {activeRouteAlert ? (
+                      <BellRing className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <Bell className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                    )}
+                    <span>
+                      {activeRouteAlert
+                        ? 'تنبيه السعر مفعّل لهذا المسار'
+                        : 'تفعيل تنبيه انخفاض السعر'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowMobileFilters((v) => !v)}
+                    className="lg:hidden px-4 py-2 rounded-xl border border-slate-200 dark:border-white/15 bg-white/85 dark:bg-slate-900/80 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2 cursor-pointer shadow-xs dark:shadow-none"
+                  >
+                    <Filter className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                    <span>{showMobileFilters ? 'إخفاء الفلاتر' : 'تصفية النتائج'}</span>
+                  </button>
+                </div>
               </div>
 
               {searchQuery.tripType === 'multi-city' && (
@@ -755,13 +1029,55 @@ export default function App() {
       {/* Authentication Modal */}
       <AuthModal
         isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
+        onClose={() => {
+          setIsAuthOpen(false);
+          setAuthNotice(undefined);
+          setPendingAlertModalAfterAuth(false);
+        }}
         registeredUsers={registeredUsers}
-        onSignIn={(user) => setSessionUserId(user.id)}
+        notice={authNotice}
+        onSignIn={(user) => {
+          setSessionUserId(user.id);
+          setAuthNotice(undefined);
+          if (pendingAlertModalAfterAuth) {
+            setPendingAlertModalAfterAuth(false);
+            setIsPriceAlertOpen(true);
+          }
+        }}
         onRegister={(newUser) => {
           setRegisteredUsers((prev) => [newUser, ...prev]);
           setSessionUserId(newUser.id);
+          setAuthNotice(undefined);
+          if (pendingAlertModalAfterAuth) {
+            setPendingAlertModalAfterAuth(false);
+            setIsPriceAlertOpen(true);
+          }
         }}
+      />
+
+      {/* Route Price Alert Modal */}
+      <PriceAlertModal
+        isOpen={isPriceAlertOpen}
+        onClose={() => setIsPriceAlertOpen(false)}
+        currentUser={currentUser}
+        onOpenAuth={() => {
+          setAuthNotice(
+            'سجّل دخولك لتفعيل تنبيهات انخفاض الأسعار لهذا المسار واستلام الإشعارات الفورية.'
+          );
+          setPendingAlertModalAfterAuth(true);
+          setIsAuthOpen(true);
+        }}
+        currentOrigin={activeRouteParams.origin}
+        currentDestination={activeRouteParams.destination}
+        currentCabinClass={activeRouteParams.cabinClass}
+        currentLowestPriceUsd={minPriceUsd}
+        currency={currency}
+        alerts={userPriceAlerts}
+        onSubscribe={handleSubscribePriceAlert}
+        onToggleAlert={handleTogglePriceAlert}
+        onDeleteAlert={handleDeletePriceAlert}
+        onSimulateDrop={triggerSimulatedPriceDrop}
+        alertsEnabledInSettings={siteSettings.flightAlertsEnabled}
       />
 
       {/* Site Settings Modal */}
@@ -774,7 +1090,11 @@ export default function App() {
         currentUser={currentUser}
         onUpdateUser={handleUpdateUser}
         onLogout={() => setSessionUserId(null)}
-        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenAuth={() => {
+          setAuthNotice(undefined);
+          setPendingAlertModalAfterAuth(false);
+          setIsAuthOpen(true);
+        }}
         onClearSavedTrips={() => setBookedTrips([])}
         savedTripsCount={bookedTrips.length}
       />
@@ -783,6 +1103,16 @@ export default function App() {
       <ContactModal
         isOpen={isContactOpen}
         onClose={() => setIsContactOpen(false)}
+      />
+
+      {/* Simulated Price Drop Toast Stack */}
+      <PriceDropToastStack
+        notifications={priceNotifications}
+        currency={currency}
+        onDismiss={(id) =>
+          setPriceNotifications((prev) => prev.filter((n) => n.id !== id))
+        }
+        onSelectRoute={handleSelectNotifiedRoute}
       />
     </div>
   );

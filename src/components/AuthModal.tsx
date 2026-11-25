@@ -19,6 +19,7 @@ interface AuthModalProps {
   registeredUsers: UserAccount[];
   onSignIn: (user: UserAccount) => void;
   onRegister: (user: UserAccount) => void;
+  notice?: string;
 }
 
 export function AuthModal({
@@ -27,6 +28,7 @@ export function AuthModal({
   registeredUsers,
   onSignIn,
   onRegister,
+  notice,
 }: AuthModalProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [fullName, setFullName] = useState('');
@@ -152,6 +154,12 @@ export function AuthModal({
         </div>
 
         <div className="p-6 space-y-5">
+          {notice && (
+            <div className="p-3 rounded-xl bg-sky-500/12 border border-sky-500/30 text-xs text-sky-800 dark:text-sky-200 leading-relaxed">
+              {notice}
+            </div>
+          )}
+
           {/* Mode Switcher Tabs */}
           <div
             role="tablist"

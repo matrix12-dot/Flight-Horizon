@@ -173,3 +173,27 @@ export interface SiteSettings {
   autoSaveSearch: boolean;
 }
 
+export interface RoutePriceAlert {
+  id: string;
+  userId: string;
+  origin: string;
+  destination: string;
+  cabinClass: CabinClass;
+  baselinePriceUsd: number;
+  targetPriceUsd: number;
+  isActive: boolean;
+  createdAt: string;
+  lastNotifiedAt?: string;
+  lastDropPriceUsd?: number;
+}
+
+export interface PriceDropNotification {
+  id: string;
+  alertId: string;
+  origin: string;
+  destination: string;
+  cabinClass: CabinClass;
+  previousPriceUsd: number;
+  newPriceUsd: number;
+  triggeredAt: string;
+}
